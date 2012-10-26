@@ -1,0 +1,217 @@
+<?php
+/**
+ * @file
+ * Code for the social_ag feature.
+ */
+
+include_once 'social_ag.features.inc';
+
+
+
+function social_ag_init(){
+	drupal_add_js(drupal_get_path('module', 'social_ag') .'/social-ag.js');
+}
+
+function social_ag_menu(){
+	$items['social-ag'] = array(
+		'title' => "Social Ag Test",
+		'access arguments' => array("access content"),
+    	'page callback' => 'social_ag_run',
+    	'type' => MENU_CALLBACK,
+    );
+    return $items;
+}
+/*
+function social_ag_delete_all(){
+	$query = new EntityFieldQuery;
+
+	$result = $query->entityCondition('entity_type', 'node')
+	    ->propertyCondition('type', 'post')
+	    ->execute();
+
+	$nids = array_keys($result['node']);
+
+	node_delete_multiple($nids);
+
+	dsm($nids);
+	return '';
+}
+*/
+function social_ag_permission(){
+	return array(
+    	'moderate social media' => array(
+      		'title' => t('Moderate Social Media'), 
+      		'description' => t('Perform tasks necessary to moderate social media.'),
+    	),
+    );
+}
+
+function social_ag_cron(){
+	$x = social_ag_run();
+	watchdog("social_ag","$x posts saved!");
+}
+
+function social_ag_run(){
+	$x = 0;
+
+	$posts = social_ag_tw_retrieve();
+	foreach($posts as $post){
+
+		if(social_ag_create($post)){ $x++; }
+	}
+
+	$posts = social_ag_fb_retrieve();
+	foreach($posts as $post){
+
+		if(social_ag_create($post)){ $x++; }
+	}
+
+	return strval($x);
+}
+
+function social_ag_tw_retrieve(){
+
+	$url = 'http://api.twitter.com/1/statuses/user_timeline.json?screen_name='. urlencode('nola_for_life') .'&include_rts=true&count=50';
+	$ch = curl_init(); 
+	curl_setopt($ch, CURLOPT_URL,$url); 
+	curl_setopt($ch, CURLOPT_RETURNTRANSFER,1); 
+	curl_setopt($ch, CURLOPT_HEADER, 0); 
+	curl_setopt($ch, CURLOPT_TIMEOUT, 4); 
+	curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows; U; Windows NT 5.1; rv:1.7.3) Gecko/20041001 Firefox/0.10.1" );
+	$results = curl_exec($ch); 
+	$results = json_decode($results);
+
+	$posts = array();
+	foreach($results as $entry){
+		$body = preg_replace('/[^a-zA-Z0-9_ %#@\/\:\[\]\.\(\)%&-]/s', '', $entry->text);
+
+		$posts[] = array(
+			'id' => $entry->id,
+			'title' => $body,
+			'source_name' => 'Twitter',
+			'source_link' => "https://twitter.com/" . $entry->user->screen_name . "/status/" . $entry->id,
+			'body' => $body,
+			'user_name' => $entry->user->name,
+			'user_link' => "https://twitter.com/" . $entry->user->screen_name,
+			'user_photo' => $entry->user->profile_image_url,
+			'timestamp' => strtotime($entry->created_at),
+		);
+	}
+	return $posts;
+}
+
+
+
+function social_ag_fb_retrieve(){
+	require 'facebook.php';
+	$facebook = new Facebook(array(
+		'appId'  => 291519234281965,
+		'secret' => ad1e4a0669676c3696b1dba86eeeea03,
+	));
+	$results = $facebook->api('388491777846848' . '/feed');
+
+	$posts = array();
+	foreach($results['data'] as $entry){
+		//$body = preg_replace('/[^a-zA-Z0-9_ %#@\/\:\[\]\.\(\)%&-]/s', '', $entry->content);
+		if($entry['message'] <> ""){
+			$posts[] = array(
+				'id' => $entry['id'],
+				'title' => $entry['name'],
+				'source_name' => 'Facebook',
+				'source_link' => 'http://fb.com/' . $entry['id'],
+				'body' => $entry['message'],
+				'user_name' => $entry['from']['name'],
+				'user_link' => 'http://fb.com/' . $entry['from']['id'],
+				'user_photo' => "https://graph.facebook.com/" . $entry['from']['id'] . "/picture",
+				'timestamp' => strtotime($entry['created_time']),
+			);
+		}
+	}
+
+	return $posts;
+}
+
+/*********
+// Post Array Example
+
+$post = array(
+	'id' => 'string',
+	'title' => 'string',
+	'source_name' => 'string',
+	'source_link' => 'http://',
+	'location' => array('lat','long'),
+	'body' => 'string',
+	'user_name' => 'string',
+	'user_photo' => 'http://',
+	'timestamp' => 000,
+);
+**********/
+
+function social_ag_create($post){
+
+	$result = db_select('field_data_field_post_id','c')
+		->fields('c')
+		->condition('field_post_id_value',check_plain($post['id']),"=")
+		->condition('bundle','post',"=")
+		->execute()
+		->fetchAssoc();
+
+
+	if(!isset($result['field_post_id_value'])){
+
+		$node = new stdClass();
+
+		$node->status = 0;
+		$node->language = LANGUAGE_NONE;
+		$node->title = substr($post['body'], 0, 100);
+		$node->type = 'post';
+
+		$node->body[LANGUAGE_NONE][0]['value'] = $post['body'];
+		$node->body[LANGUAGE_NONE][0]['format'] = 'html';
+
+		$node->field_post_id[LANGUAGE_NONE][0]['value'] = check_plain($post['id']);
+		$node->field_source_name[LANGUAGE_NONE][0]['value'] = $post['source_name'];
+		$node->field_source_link[LANGUAGE_NONE][0]['url'] = $post['source_link'];
+		
+		$node->field_date[LANGUAGE_NONE][0]['value'] = date("Y-m-d H:i:s", $post['timestamp']);
+		$node->field_date[LANGUAGE_NONE][0]['value2'] = date("Y-m-d H:i:s", $post['timestamp']);
+		$node->field_date[LANGUAGE_NONE][0]['timezone'] = "America/Chicago";
+		$node->field_date[LANGUAGE_NONE][0]['timezone_db'] = "UTC";
+		
+		$node->field_user_name[LANGUAGE_NONE][0]['value'] = $post['user_name'];
+		$node->field_user_image[LANGUAGE_NONE][0]['url'] = $post['user_photo'];
+		$node->field_user_link[LANGUAGE_NONE][0]['url'] = $post['user_link'];
+
+		preg_match_all('#\bhttps?://[^\s()<>]+(?:\([\w\d]+\)|([^[:punct:]\s]|/))#', $post['body'], $result);
+   		if(count($result[0])){
+			$node->field_preview_link[LANGUAGE_NONE][0]['url'] = check_plain($result[0][0]);
+			$node->field_preview_thumb[LANGUAGE_NONE][0]['url'] = social_ag_preview($result[0][0]);
+   		}
+ 
+		node_save($node);
+
+		return true;
+	}
+}
+
+function social_ag_preview($url){
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_HEADER, 0);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
+    $data = curl_exec($ch);
+    curl_close($ch);
+
+	$doc = new DOMDocument();
+	@$doc->loadHTML($data);
+
+	foreach( $doc->getElementsByTagName('meta') as $meta ) { 
+	   $metadata[$meta->getAttribute('property')] = $meta->getAttribute('content');
+	}
+	if(isset($metadata['og:image'])){
+		return $metadata['og:image'];
+	}else{
+		return "";
+	}
+}

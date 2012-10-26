@@ -1,0 +1,28 @@
+name = social_ag
+core = 7.x
+package = Features
+
+dependencies[] = ctools
+dependencies[] = date
+dependencies[] = features
+dependencies[] = field_sql_storage
+dependencies[] = link
+dependencies[] = node
+dependencies[] = text
+dependencies[] = views
+
+features[ctools][] = views:views_default:3.0
+features[features_api][] = api:1
+features[field][] = node-post-body
+features[field][] = node-post-field_date
+features[field][] = node-post-field_link
+features[field][] = node-post-field_source_link
+features[field][] = node-post-field_source_name
+features[field][] = node-post-field_post_id
+features[field][] = node-post-field_user_image
+features[field][] = node-post-field_user_name
+features[field][] = node-post-field_user_link
+features[field][] = node-post-field_preview_link
+features[field][] = node-post-field_preview_thumb
+features[node][] = post
+features[views_view][] = posts
