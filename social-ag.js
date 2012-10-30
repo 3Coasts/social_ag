@@ -2,7 +2,7 @@
 
 Drupal.behaviors.socialag = {
   attach: function(context) {
-  	$(".view-id-social .views-field-body").each(function(){
+  	$(".view-id-social .body").each(function(){
 		var str = $(this).text();
 		var exp = "/(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig";
 		str.replace(exp,"<a href='$1'>$1</a>");
@@ -14,8 +14,11 @@ Drupal.behaviors.socialag = {
 			if(str[x].charAt(0) == "#"){
 				str[x] = "<a href='https://twitter.com/search?q=" + path + "&src=hash'>" + str[x] + "</a>";
 			}
-			if(str[x].charAt(0) == "@"){
+			if(str[x].charAt(0) == "@" && str[x].length > 1){
 				str[x] = "<a href='https://twitter.com/" + path + "'>" + str[x] + "</a>";
+			}
+			if(str[x].substr(0,4) == 'http'){
+				str[x] = "<a href='" + str[x] + "'>" + str[x] + "</a>";
 			}
 		}
 
