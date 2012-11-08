@@ -79,7 +79,7 @@ function social_ag_run(){
 
 function social_ag_tw_retrieve(){
 	$twitter_acct = variable_get('social_ag_twitter_account', '');
-	dsm($twitter_acct);
+
 	if($twitter_acct <> ''){
 		$url = 'http://api.twitter.com/1/statuses/user_timeline.json?screen_name='. urlencode($twitter_acct) .'&include_rts=true&count=50';
 		$ch = curl_init(); 
@@ -113,30 +113,34 @@ function social_ag_tw_retrieve(){
 
 function social_ag_fb_retrieve(){
 	$fb_acct = variable_get('social_ag_facebook_page_id', '');
-	dsm($fb_acct);
+
 	if($fb_acct <> ''){
 		require 'facebook.php';
 		$facebook = new Facebook(array(
-			'appId'  => 291519234281965,
-			'secret' => ad1e4a0669676c3696b1dba86eeeea03,
+			'appId'  => '291519234281965',
+			'secret' => 'ad1e4a0669676c3696b1dba86eeeea03',
 		));
 		$results = $facebook->api($fb_acct . '/feed');
 		dsm($results);
 		$posts = array();
-		foreach($results['data'] as $entry){
+		foreach($results['data'] as $key => $entry){
 			//$body = preg_replace('/[^a-zA-Z0-9_ %#@\/\:\[\]\.\(\)%&-]/s', '', $entry->content);
-			if($entry['message'] <> ""){
-				$posts[] = array(
+			if($entry['message'] <> "" || $entry['name'] <> ""){
+				$posts[$key] = array(
 					'id' => $entry['id'],
 					'title' => $entry['name'],
 					'source_name' => 'Facebook',
 					'source_link' => 'http://fb.com/' . $entry['id'],
-					'body' => $entry['message'],
 					'user_name' => $entry['from']['name'],
 					'user_link' => 'http://fb.com/' . $entry['from']['id'],
 					'user_photo' => "https://graph.facebook.com/" . $entry['from']['id'] . "/picture",
 					'timestamp' => strtotime($entry['created_time']),
 				);
+			}
+			if($entry['message'] <> ""){
+				$posts[$key]['body'] = $entry['message'];
+			}else{
+				$posts[$key]['body'] = $entry['name'];
 			}
 		}
 
